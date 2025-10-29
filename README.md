@@ -106,6 +106,244 @@ I plan on moving back to Anthropic (3.5 sonnet only)
 
 Groq was used for a fast understand action usecase
 
+## Jetson Orin Nano Setup (JetPack 6.2)
+
+This section provides complete setup instructions for running Tau on NVIDIA Jetson Orin Nano with JetPack 6.2 and Docker.
+
+### Prerequisites for Jetson
+
+- **NVIDIA Jetson Orin Nano** (8GB recommended)
+- **JetPack 6.2** installed
+- **Docker** with NVIDIA Container Toolkit
+- **Internet connection** for downloading models
+
+### Quick Start (Docker - Recommended)
+
+#### 1. Clone the Repository
+```bash
+git clone https://github.com/OriNachum/autonomous-intelligence.git
+cd autonomous-intelligence
+```
+
+#### 2. Configure Environment
+```bash
+# Copy environment template
+cp baby-tau/.env_example .env
+
+# Edit configuration for Jetson
+nano .env
+```
+
+**Key settings for Jetson Orin Nano 8GB:**
+```bash
+# Port Configuration
+SPEACHES_HOST_PORT=8001
+VLLM_PORT=8000
+KOKORO_TTS_HOST_PORT=8880
+
+# Model Configuration (optimized for 8GB)
+VLLM_MODEL=ibm-granite/granite-3.1-8b-instruct
+OLLAMA_MODEL=llama3.2:1b
+
+# Memory Settings
+VLLM_GPU_MEMORY_UTILIZATION=0.30
+VAD_EVERY_N_CHUNKS=6
+
+# Voice Settings
+TTS_VOICE=af_alloy
+
+# Hugging Face Token (required for gated models)
+HF_TOKEN=your_huggingface_token_here
+```
+
+#### 3. Start the Chat Agent
+```bash
+# Start all services with Docker
+docker-compose -f baby-tau/docker-compose.yaml up -d
+
+# Check if services are running
+docker-compose -f baby-tau/docker-compose.yaml ps
+
+# View logs
+docker-compose -f baby-tau/docker-compose.yaml logs -f
+```
+
+#### 4. Run the Main Application
+```bash
+# For voice interaction
+cd baby-tau/jetson
+python3 main.py --audio
+
+# For text interaction
+python3 main.py
+```
+
+### Manual Setup (Alternative)
+
+If Docker setup fails, follow these manual installation steps:
+
+#### 1. Install System Dependencies
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install audio dependencies
+sudo apt-get install -y portaudio19-dev python3-all-dev python3-setuptools
+sudo apt-get install -y espeak espeak-data libespeak-dev
+sudo apt-get install -y alsa-utils pulseaudio
+
+# Install build tools
+sudo apt-get install -y build-essential cmake git pkg-config
+```
+
+#### 2. Install PyTorch for Jetson
+```bash
+# Install cuSPARSELt (required for PyTorch)
+wget https://developer.download.nvidia.com/compute/cusparselt/0.6.3/local_installers/cusparselt-local-tegra-repo-ubuntu2204-0.6.3_1.0-1_arm64.deb
+sudo dpkg -i cusparselt-local-tegra-repo-ubuntu2204-0.6.3_1.0-1_arm64.deb
+sudo cp /var/cusparselt-local-tegra-repo-ubuntu2204-0.6.3/cusparselt-*-keyring.gpg /usr/share/keyrings/
+sudo apt-get update
+sudo apt-get -y install libcusparselt0 libcusparselt-dev
+
+# Install PyTorch for Jetson
+wget https://developer.download.nvidia.com/compute/redist/jp/v61/pytorch/torch-2.5.0a0+872d972e41.nv24.08.17622132-cp310-cp310-linux_aarch64.whl
+pip3 install torch-2.5.0a0+872d972e41.nv24.08.17622132-cp310-cp310-linux_aarch64.whl
+
+# Set up environment
+echo 'export PATH=/usr/local/cuda/bin:$PATH' >> ~/.bashrc
+echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+
+# Create symbolic link
+sudo ln -sf /usr/local/cuda/lib64/libcusparse.so.12 /usr/local/cuda/lib64/libcusparse.so
+```
+
+#### 3. Install Python Dependencies
+```bash
+cd jetson-super
+chmod +x setup.sh
+./setup.sh
+
+# Install additional requirements
+cd ../baby-tau/jetson
+pip3 install -r ../../jetson-4gb-legacy/requirements.txt
+```
+
+#### 4. Configure and Run
+```bash
+# Copy environment template
+cp ../../baby-tau/.env_example .env
+
+# Edit configuration
+nano .env
+
+# Start services manually (in separate terminals)
+# Terminal 1: Start STT service
+python3 services/speech_transcriber.py
+
+# Terminal 2: Start LLM service
+python3 services/ollama_service.py
+
+# Terminal 3: Start TTS service
+python3 services/speaker.py
+
+# Terminal 4: Start main application
+python3 main.py --audio
+```
+
+### Service Architecture
+
+The system runs with the following services:
+
+1. **Speech-to-Text (STT)** - Port 8001
+   - Uses faster-whisper for local speech recognition
+   - Handles audio input and transcription
+
+2. **Large Language Model (LLM)** - Port 8000
+   - Runs local models (Llama, Gemma, Granite)
+   - Processes conversation and generates responses
+
+3. **Text-to-Speech (TTS)** - Port 8880
+   - Converts text responses to audio
+   - Supports multiple TTS engines (Piper, Kokoro)
+
+4. **Main Application**
+   - Coordinates all services
+   - Handles voice activity detection (VAD)
+   - Manages conversation flow
+
+### Troubleshooting
+
+#### Common Issues and Solutions
+
+**1. CUDA not detected:**
+```bash
+python3 -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+python3 -c "import torch; print(f'CUDA version: {torch.version.cuda}')"
+```
+
+**2. Audio device issues:**
+```bash
+# Check audio devices
+aplay -l
+arecord -l
+
+# Start PulseAudio
+pulseaudio --start
+
+# Test audio
+speaker-test -t wav -c 2
+```
+
+**3. Memory issues:**
+- Reduce `VLLM_GPU_MEMORY_UTILIZATION` to 0.2-0.3
+- Use smaller models like `llama3.2:1b`
+- Increase `VAD_EVERY_N_CHUNKS` to 8-10
+
+**4. Camera issues (if using vision):**
+```bash
+# Check camera devices
+ls -la /dev/video*
+v4l2-ctl --list-devices
+```
+
+**5. Docker permission issues:**
+```bash
+# Add user to docker group
+sudo usermod -aG docker $USER
+# Log out and back in, or run:
+newgrp docker
+```
+
+### Performance Optimization
+
+For optimal performance on Jetson Orin Nano 8GB:
+
+- **Power Mode:** Set to MAXN (maximum performance)
+- **Memory:** Use 30% GPU memory for VLLM
+- **Models:** Start with smaller models (1B parameters)
+- **VAD:** Increase chunk processing interval to reduce CPU load
+- **Cooling:** Ensure adequate cooling for sustained performance
+
+### Usage
+
+Once running, the system will:
+
+1. **Listen** for voice input using VAD (Voice Activity Detection)
+2. **Transcribe** speech to text using Whisper
+3. **Process** with local LLM (Llama/Gemma/Granite)
+4. **Synthesize** response using TTS
+5. **Play** audio response
+
+**Voice Commands:**
+- Speak naturally - the system uses VAD to detect when you start/stop talking
+- The system maintains conversation context
+- Use Ctrl+C to exit
+
+**Text Mode:**
+- Type messages and press Enter
+- Type `/q` to quit
+
 ## Installation
 
 1. Cloning Git repositories

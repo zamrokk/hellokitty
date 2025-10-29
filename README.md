@@ -399,3 +399,7 @@ Of them, these are the people who confirmed for me to mention them:
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+
+
+export CURSOR_AUTH_TOKEN=key_885a824326a461efc5ffefa55fa37f9e1db44e25c549106c939ce452bea1aa0e

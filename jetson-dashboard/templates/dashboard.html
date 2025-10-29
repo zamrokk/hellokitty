@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jetson Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .status-bar {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+
+        .status-item {
+            text-align: center;
+        }
+
+        .status-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+
+        .status-value {
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h3 {
+            color: #4a5568;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+        }
+
+        .card h3::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+        }
+
+        .metric:last-child {
+            margin-bottom: 0;
+        }
+
+        .metric-label {
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4ade80, #22c55e);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-fill.warning {
+            background: linear-gradient(90deg, #fbbf24, #f59e0b);
+        }
+
+        .progress-fill.danger {
+            background: linear-gradient(90deg, #f87171, #ef4444);
+        }
+
+        .cpu-cores {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .cpu-core {
+            text-align: center;
+            padding: 10px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+        }
+
+        .cpu-core-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .cpu-core-label {
+            font-size: 0.8em;
+            color: #6b7280;
+            margin-top: 5px;
+        }
+
+        .temperature {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .temp-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            background: linear-gradient(45deg, #f59e0b, #ef4444);
+            border-radius: 50%;
+        }
+
+        .loading {
+            text-align: center;
+            color: #6b7280;
+            font-style: italic;
+        }
+
+        .error {
+            color: #ef4444;
+            text-align: center;
+            padding: 20px;
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-bar {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Jetson Dashboard</h1>
+            <p>Surveillance système en temps réel</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-label">Modèle</div>
+                <div class="status-value" id="model">Chargement...</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">Uptime</div>
+                <div class="status-value" id="uptime">Chargement...</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">Dernière MAJ</div>
+                <div class="status-value" id="lastUpdate">Chargement...</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- RAM Card -->
+            <div class="card">
+                <h3>💾 Mémoire RAM</h3>
+                <div class="metric">
+                    <span class="metric-label">Utilisée</span>
+                    <span class="metric-value" id="ramUsed">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Totale</span>
+                    <span class="metric-value" id="ramTotal">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Pourcentage</span>
+                    <span class="metric-value" id="ramPercent">-</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="ramProgress"></div>
+                </div>
+            </div>
+
+            <!-- CPU Card -->
+            <div class="card">
+                <h3>⚡ Processeur</h3>
+                <div class="metric">
+                    <span class="metric-label">Utilisation moyenne</span>
+                    <span class="metric-value" id="cpuAverage">-</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="cpuProgress"></div>
+                </div>
+                <div class="cpu-cores" id="cpuCores">
+                    <div class="loading">Chargement des cœurs...</div>
+                </div>
+            </div>
+
+            <!-- GPU Card -->
+            <div class="card">
+                <h3>🎮 GPU</h3>
+                <div class="metric">
+                    <span class="metric-label">Utilisation</span>
+                    <span class="metric-value" id="gpuUtil">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Fréquence</span>
+                    <span class="metric-value" id="gpuFreq">-</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="gpuProgress"></div>
+                </div>
+            </div>
+
+            <!-- Temperature Card -->
+            <div class="card">
+                <h3>🌡️ Températures</h3>
+                <div class="temperature">
+                    <div class="temp-icon"></div>
+                    <div>
+                        <div class="metric-label">CPU</div>
+                        <div class="metric-value" id="tempCpu">-</div>
+                    </div>
+                </div>
+                <div class="temperature">
+                    <div class="temp-icon"></div>
+                    <div>
+                        <div class="metric-label">GPU</div>
+                        <div class="metric-value" id="tempGpu">-</div>
+                    </div>
+                </div>
+                <div id="tempSoc" class="loading">Chargement des capteurs SOC...</div>
+            </div>
+
+            <!-- Power Card -->
+            <div class="card">
+                <h3>⚡ Consommation</h3>
+                <div class="metric">
+                    <span class="metric-label">VDD_IN</span>
+                    <span class="metric-value" id="powerIn">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">VDD_CPU_GPU_CV</span>
+                    <span class="metric-value" id="powerCpuGpu">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">VDD_SOC</span>
+                    <span class="metric-value" id="powerSoc">-</span>
+                </div>
+            </div>
+
+            <!-- Swap Card -->
+            <div class="card">
+                <h3>🔄 Swap</h3>
+                <div class="metric">
+                    <span class="metric-label">Utilisée</span>
+                    <span class="metric-value" id="swapUsed">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Totale</span>
+                    <span class="metric-value" id="swapTotal">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Pourcentage</span>
+                    <span class="metric-value" id="swapPercent">-</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="swapProgress"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let updateInterval;
+
+        function updateProgressBar(elementId, percentage) {
+            const progressBar = document.getElementById(elementId);
+            if (progressBar) {
+                progressBar.style.width = percentage + '%';
+                progressBar.className = 'progress-fill';
+                if (percentage > 80) {
+                    progressBar.classList.add('danger');
+                } else if (percentage > 60) {
+                    progressBar.classList.add('warning');
+                }
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function formatMB(bytes) {
+            return bytes + ' MB';
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('fr-FR');
+        }
+
+        function updateDashboard(data) {
+            try {
+                // System info
+                document.getElementById('model').textContent = data.system.model || 'NVIDIA Jetson';
+                document.getElementById('uptime').textContent = data.system.uptime || 'Inconnu';
+                document.getElementById('lastUpdate').textContent = formatTime(data.timestamp * 1000);
+
+                // RAM
+                const ram = data.data.ram;
+                document.getElementById('ramUsed').textContent = formatMB(ram.used);
+                document.getElementById('ramTotal').textContent = formatMB(ram.total);
+                document.getElementById('ramPercent').textContent = ram.percentage + '%';
+                updateProgressBar('ramProgress', ram.percentage);
+
+                // CPU
+                const cpu = data.data.cpu;
+                document.getElementById('cpuAverage').textContent = cpu.average + '%';
+                updateProgressBar('cpuProgress', cpu.average);
+
+                // CPU Cores
+                const cpuCoresDiv = document.getElementById('cpuCores');
+                cpuCoresDiv.innerHTML = '';
+                cpu.cores.forEach((core, index) => {
+                    const coreDiv = document.createElement('div');
+                    coreDiv.className = 'cpu-core';
+                    coreDiv.innerHTML = `
+                        <div class="cpu-core-value">${core.usage}%</div>
+                        <div class="cpu-core-label">Core ${index}</div>
+                    `;
+                    cpuCoresDiv.appendChild(coreDiv);
+                });
+
+                // GPU
+                const gpu = data.data.gpu;
+                document.getElementById('gpuUtil').textContent = gpu.utilization + '%';
+                document.getElementById('gpuFreq').textContent = gpu.frequency + ' MHz';
+                updateProgressBar('gpuProgress', gpu.utilization);
+
+                // Temperature
+                const temp = data.data.temperature;
+                document.getElementById('tempCpu').textContent = temp.cpu.toFixed(1) + '°C';
+                document.getElementById('tempGpu').textContent = temp.gpu.toFixed(1) + '°C';
+
+                // SOC Temperatures
+                const tempSocDiv = document.getElementById('tempSoc');
+                if (temp.soc && temp.soc.length > 0) {
+                    tempSocDiv.innerHTML = temp.soc.map(soc => `
+                        <div class="temperature">
+                            <div class="temp-icon"></div>
+                            <div>
+                                <div class="metric-label">${soc.sensor}</div>
+                                <div class="metric-value">${soc.temp.toFixed(1)}°C</div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    tempSocDiv.innerHTML = '<div class="loading">Aucun capteur SOC disponible</div>';
+                }
+
+                // Power
+                const power = data.data.power;
+                document.getElementById('powerIn').textContent = power.vdd_in + ' mW';
+                document.getElementById('powerCpuGpu').textContent = power.vdd_cpu_gpu_cv + ' mW';
+                document.getElementById('powerSoc').textContent = power.vdd_soc + ' mW';
+
+                // Swap
+                const swap = data.data.swap;
+                document.getElementById('swapUsed').textContent = formatMB(swap.used);
+                document.getElementById('swapTotal').textContent = formatMB(swap.total);
+                document.getElementById('swapPercent').textContent = swap.percentage + '%';
+                updateProgressBar('swapProgress', swap.percentage);
+
+            } catch (error) {
+                console.error('Error updating dashboard:', error);
+                showError('Erreur lors de la mise à jour des données');
+            }
+        }
+
+        function showError(message) {
+            const container = document.querySelector('.container');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            container.insertBefore(errorDiv, container.firstChild);
+        }
+
+        function fetchData() {
+            fetch('/api/data')
+                .then(response => response.json())
+                .then(data => {
+                    updateDashboard(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                    showError('Impossible de récupérer les données du serveur');
+                });
+        }
+
+        // Start updating every 2 seconds
+        function startUpdates() {
+            fetchData(); // Initial load
+            updateInterval = setInterval(fetchData, 2000);
+        }
+
+        // Start the dashboard
+        document.addEventListener('DOMContentLoaded', startUpdates);
+    </script>
+</body>
+</html>

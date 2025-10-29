@@ -1,3 +1,11 @@
+docker run -it --rm \
+  --gpus all \
+  --device /dev/snd:/dev/snd \
+  --env OLLAMA_MODEL=llama3.2:3b \
+  --env PIPER_VOICE=en_US-lessac-medium \
+  ghcr.io/orinachum/autonomous-intelligence:latest
+
+
 # Tau - The Autonomous, Understanding robot
 
 This is Tau!  

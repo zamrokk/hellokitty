@@ -178,6 +178,13 @@
             font-size: 0.8em;
             color: #6b7280;
             margin-top: 5px;
+            font-weight: bold;
+        }
+
+        .cpu-core-cluster {
+            font-size: 0.7em;
+            color: #9ca3af;
+            margin-top: 2px;
         }
 
         .temperature {
@@ -238,6 +245,10 @@
                 <div class="status-value" id="model">Chargement...</div>
             </div>
             <div class="status-item">
+                <div class="status-label">Architecture</div>
+                <div class="status-value" id="architecture">Chargement...</div>
+            </div>
+            <div class="status-item">
                 <div class="status-label">Uptime</div>
                 <div class="status-value" id="uptime">Chargement...</div>
             </div>
@@ -248,9 +259,9 @@
         </div>
 
         <div class="grid">
-            <!-- RAM Card -->
+            <!-- Unified Memory Card -->
             <div class="card">
-                <h3>💾 Mémoire RAM</h3>
+                <h3>💾 Mémoire Unifiée (CPU+GPU)</h3>
                 <div class="metric">
                     <span class="metric-label">Utilisée</span>
                     <span class="metric-value" id="ramUsed">-</span>
@@ -266,11 +277,14 @@
                 <div class="progress-bar">
                     <div class="progress-fill" id="ramProgress"></div>
                 </div>
+                <div style="margin-top: 10px; font-size: 0.9em; color: #6b7280; text-align: center;">
+                    🔄 Partagée entre CPU et GPU
+                </div>
             </div>
 
             <!-- CPU Card -->
             <div class="card">
-                <h3>⚡ Processeur</h3>
+                <h3>⚡ Processeur ARM Cortex-A78AE</h3>
                 <div class="metric">
                     <span class="metric-label">Utilisation moyenne</span>
                     <span class="metric-value" id="cpuAverage">-</span>
@@ -281,21 +295,32 @@
                 <div class="cpu-cores" id="cpuCores">
                     <div class="loading">Chargement des cœurs...</div>
                 </div>
+                <div style="margin-top: 10px; font-size: 0.9em; color: #6b7280; text-align: center;">
+                    🏗️ 6 cœurs ARMv8 (2 clusters × 3 cœurs)<br>
+                    🔄 Architecture big.LITTLE
+                </div>
             </div>
 
-            <!-- GPU Card -->
+            <!-- System Load Card -->
             <div class="card">
-                <h3>🎮 GPU</h3>
+                <h3>📊 Charge Système</h3>
                 <div class="metric">
-                    <span class="metric-label">Utilisation</span>
-                    <span class="metric-value" id="gpuUtil">-</span>
+                    <span class="metric-label">Load Average 1min</span>
+                    <span class="metric-value" id="loadAvg1">-</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">Fréquence</span>
-                    <span class="metric-value" id="gpuFreq">-</span>
+                    <span class="metric-label">Load Average 5min</span>
+                    <span class="metric-value" id="loadAvg5">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Load Average 15min</span>
+                    <span class="metric-value" id="loadAvg15">-</span>
                 </div>
                 <div class="progress-bar">
-                    <div class="progress-fill" id="gpuProgress"></div>
+                    <div class="progress-fill" id="loadProgress"></div>
+                </div>
+                <div style="margin-top: 10px; font-size: 0.9em; color: #6b7280; text-align: center;">
+                    📈 Charge moyenne sur 6 cœurs
                 </div>
             </div>
 
@@ -395,6 +420,7 @@
             try {
                 // System info
                 document.getElementById('model').textContent = data.system.model || 'NVIDIA Jetson';
+                document.getElementById('architecture').textContent = data.system.architecture || 'ARM (Unified Memory)';
                 document.getElementById('uptime').textContent = data.system.uptime || 'Inconnu';
                 document.getElementById('lastUpdate').textContent = formatTime(data.timestamp * 1000);
 
@@ -416,18 +442,25 @@
                 cpu.cores.forEach((core, index) => {
                     const coreDiv = document.createElement('div');
                     coreDiv.className = 'cpu-core';
+                    
+                    // Déterminer le cluster (0-2 = cluster 1, 3-5 = cluster 2)
+                    const cluster = Math.floor(index / 3) + 1;
+                    const coreInCluster = (index % 3) + 1;
+                    
                     coreDiv.innerHTML = `
                         <div class="cpu-core-value">${core.usage}%</div>
-                        <div class="cpu-core-label">Core ${index}</div>
+                        <div class="cpu-core-label">C${index}</div>
+                        <div class="cpu-core-cluster">Cluster ${cluster}</div>
                     `;
                     cpuCoresDiv.appendChild(coreDiv);
                 });
 
-                // GPU
-                const gpu = data.data.gpu;
-                document.getElementById('gpuUtil').textContent = gpu.utilization + '%';
-                document.getElementById('gpuFreq').textContent = gpu.frequency + ' MHz';
-                updateProgressBar('gpuProgress', gpu.utilization);
+                // System Load
+                const load = data.data.load;
+                document.getElementById('loadAvg1').textContent = load['1min'];
+                document.getElementById('loadAvg5').textContent = load['5min'];
+                document.getElementById('loadAvg15').textContent = load['15min'];
+                updateProgressBar('loadProgress', load.percentage);
 
                 // Temperature
                 const temp = data.data.temperature;

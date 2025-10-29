@@ -77,7 +77,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_error(500, f"Error getting status: {e}")
 
-def start_server(port=5000):
+def start_server(port=8080):
     """Start the HTTP server"""
     try:
         with socketserver.TCPServer(("", port), DashboardHandler) as httpd:

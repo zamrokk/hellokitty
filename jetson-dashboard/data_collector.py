@@ -39,6 +39,7 @@ class JetsonDataCollector:
             'swap': {'used': 0, 'total': 0, 'percentage': 0},
             'cpu': {'cores': [], 'average': 0},
             'gpu': {'frequency': 0, 'utilization': 0},
+            'load': {'1min': 0, '5min': 0, '15min': 0, 'percentage': 0},
             'temperature': {'cpu': 0, 'gpu': 0, 'soc': []},
             'power': {'vdd_in': 0, 'vdd_cpu_gpu_cv': 0, 'vdd_soc': 0}
         }
@@ -124,6 +125,7 @@ class JetsonDataCollector:
             'swap': {'used': 0, 'total': 0, 'percentage': 0},
             'cpu': {'cores': [], 'average': 0},
             'gpu': {'frequency': 0, 'utilization': 0},
+            'load': {'1min': 0, '5min': 0, '15min': 0, 'percentage': 0},
             'temperature': {'cpu': 0, 'gpu': 0, 'soc': []},
             'power': {'vdd_in': 0, 'vdd_cpu_gpu_cv': 0, 'vdd_soc': 0}
         }
@@ -144,7 +146,7 @@ class JetsonDataCollector:
                 'percentage': round((mem_used / mem_total) * 100, 1)
             }
             
-            # Get CPU info
+            # Get load average
             with open('/proc/loadavg', 'r') as f:
                 loadavg = f.read().split()
             
@@ -153,9 +155,21 @@ class JetsonDataCollector:
                 cpuinfo = f.read()
             cpu_count = cpuinfo.count('processor')
             
-            # Estimate CPU usage from load average
+            # Parse load average
             load_1min = float(loadavg[0])
+            load_5min = float(loadavg[1])
+            load_15min = float(loadavg[2])
+            
+            # Calculate load percentage (load / cpu_count * 100)
+            load_percentage = min(100, (load_1min / cpu_count) * 100)
             cpu_usage = min(100, (load_1min / cpu_count) * 100)
+            
+            data['load'] = {
+                '1min': round(load_1min, 2),
+                '5min': round(load_5min, 2),
+                '15min': round(load_15min, 2),
+                'percentage': round(load_percentage, 1)
+            }
             
             data['cpu'] = {
                 'cores': [{'usage': round(cpu_usage), 'frequency': 0} for _ in range(cpu_count)],
@@ -190,9 +204,11 @@ class JetsonDataCollector:
                 if result.returncode == 0:
                     jetson_info['model'] = 'NVIDIA Jetson Orin Nano'
                     jetson_info['l4t'] = '36.4.7'
+                    jetson_info['architecture'] = 'ARMv8 Cortex-A78AE (Unified Memory)'
             except:
                 jetson_info['model'] = 'NVIDIA Jetson Device'
                 jetson_info['l4t'] = 'Unknown'
+                jetson_info['architecture'] = 'ARM (Unified Memory)'
             
             # Get uptime
             with open('/proc/uptime', 'r') as f:
@@ -200,9 +216,44 @@ class JetsonDataCollector:
                 uptime_hours = uptime_seconds / 3600
                 jetson_info['uptime'] = f"{uptime_hours:.1f} hours"
             
+            # Get CPU info
+            try:
+                with open('/proc/cpuinfo', 'r') as f:
+                    cpuinfo = f.read()
+                    cpu_count = cpuinfo.count('processor')
+                    jetson_info['cpu_cores'] = cpu_count
+                    
+                    # Get CPU model
+                    model_match = re.search(r'model name\s*:\s*(.+)', cpuinfo)
+                    if model_match:
+                        jetson_info['cpu_model'] = model_match.group(1).strip()
+                    else:
+                        jetson_info['cpu_model'] = 'ARM Cortex-A78AE'
+                    
+                    # Add CPU architecture details
+                    jetson_info['cpu_cores_total'] = cpu_count
+                    jetson_info['cpu_clusters'] = 2
+                    jetson_info['cpu_cores_per_cluster'] = 3
+            except:
+                jetson_info['cpu_cores'] = 6
+                jetson_info['cpu_model'] = 'ARM Cortex-A78AE'
+                jetson_info['cpu_cores_total'] = 6
+                jetson_info['cpu_clusters'] = 2
+                jetson_info['cpu_cores_per_cluster'] = 3
+            
             return jetson_info
         except:
-            return {'model': 'Unknown', 'l4t': 'Unknown', 'uptime': 'Unknown'}
+            return {
+                'model': 'Unknown', 
+                'l4t': 'Unknown', 
+                'uptime': 'Unknown',
+                'architecture': 'ARM Cortex-A78AE (Unified Memory)',
+                'cpu_cores': 6,
+                'cpu_model': 'ARM Cortex-A78AE',
+                'cpu_cores_total': 6,
+                'cpu_clusters': 2,
+                'cpu_cores_per_cluster': 3
+            }
 
 if __name__ == "__main__":
     collector = JetsonDataCollector()

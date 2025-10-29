@@ -18,10 +18,11 @@ class JetsonDataCollector:
     def get_tegrastats_data(self):
         """Extract data from tegrastats output"""
         try:
-            # Run tegrastats for 1 second to get current data
-            result = subprocess.run(['timeout', '1', 'tegrastats', '--interval', '1000'], 
-                                  capture_output=True, text=True, timeout=5)
-            if result.returncode == 0:
+            # Run tegrastats for 2 seconds to get current data
+            result = subprocess.run(['timeout', '2', 'tegrastats', '--interval', '1000'], 
+                                  capture_output=True, text=True, timeout=10)
+            # Return code 124 means timeout, which is expected for tegrastats
+            if result.returncode == 0 or result.returncode == 124:
                 lines = result.stdout.strip().split('\n')
                 if lines:
                     self.last_tegrastats = lines[-1]  # Get the last line
@@ -103,7 +104,7 @@ class JetsonDataCollector:
                     data['temperature']['soc'].append({'sensor': sensor, 'temp': temp_val})
             
             # Power: VDD_IN 3709mW/3709mW VDD_CPU_GPU_CV 523mW/523mW VDD_SOC 1128mW/1128mW
-            power_matches = re.findall(r'VDD_(\w+) (\d+)mW/(\d+)mW', line)
+            power_matches = re.findall(r'VDD_([A-Z_]+) (\d+)mW/(\d+)mW', line)
             for ptype, current, max_power in power_matches:
                 if ptype == 'IN':
                     data['power']['vdd_in'] = int(current)

@@ -24,6 +24,8 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.serve_api_data()
         elif self.path == '/api/status':
             self.serve_api_status()
+        elif self.path.startswith('/static/'):
+            self.serve_static_file()
         else:
             super().do_GET()
     
@@ -56,9 +58,19 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            self.wfile.write(json.dumps(response).encode('utf-8'))
+            try:
+                self.wfile.write(json.dumps(response).encode('utf-8'))
+            except BrokenPipeError:
+                # Client closed the connection; ignore gracefully
+                self.close_connection = True
+                return
         except Exception as e:
-            self.send_error(500, f"Error getting data: {e}")
+            try:
+                self.send_error(500, f"Error getting data: {e}")
+            except BrokenPipeError:
+                # Even sending the error failed because client disconnected
+                self.close_connection = True
+                return
     
     def serve_api_status(self):
         """Serve basic status"""
@@ -76,6 +88,44 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(status).encode('utf-8'))
         except Exception as e:
             self.send_error(500, f"Error getting status: {e}")
+    
+    def serve_static_file(self):
+        """Serve static files (CSS, JS, images)"""
+        try:
+            # Remove /static/ prefix and get the file path
+            file_path = self.path[8:]  # Remove '/static/'
+            
+            # Security check - only allow files in static directory
+            if '..' in file_path or file_path.startswith('/'):
+                self.send_error(403, "Forbidden")
+                return
+            
+            # Determine content type based on file extension
+            if file_path.endswith('.css'):
+                content_type = 'text/css'
+            elif file_path.endswith('.js'):
+                content_type = 'application/javascript'
+            elif file_path.endswith('.png'):
+                content_type = 'image/png'
+            elif file_path.endswith('.jpg') or file_path.endswith('.jpeg'):
+                content_type = 'image/jpeg'
+            elif file_path.endswith('.gif'):
+                content_type = 'image/gif'
+            else:
+                content_type = 'application/octet-stream'
+            
+            with open(f'static/{file_path}', 'rb') as f:
+                content = f.read()
+            
+            self.send_response(200)
+            self.send_header('Content-type', content_type)
+            self.send_header('Cache-Control', 'public, max-age=3600')  # Cache for 1 hour
+            self.end_headers()
+            self.wfile.write(content)
+        except FileNotFoundError:
+            self.send_error(404, "File not found")
+        except Exception as e:
+            self.send_error(500, f"Error serving static file: {e}")
 
 def start_server(port=8080):
     """Start the HTTP server"""
